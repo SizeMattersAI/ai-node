@@ -1,0 +1,5 @@
+/venv
+models/
+temp_downloads/
+.env
+downloader_state.json

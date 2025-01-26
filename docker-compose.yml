@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  predictor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the source code
+      - .:/app
+      # Mount a volume for any data that needs to persist
+      - predictor_data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1  # This ensures Python output is sent straight to terminal
+
+volumes:
+  predictor_data:  # Named volume for persistent data storage 

@@ -1,0 +1,17 @@
+zipp==3.15.0
+    # via
+    #   -r flask/requirements.txt
+    #   importlib-metadata
+deepface==0.0.79
+tensorflow==2.13.0
+keras==2.13.1
+numpy>=1.22.0
+pillow>=9.0.0 
+boto3==1.26.42
+python-telegram-bot
+ifnude
+numpy 
+botocore
+pillow
+opencv-python
+python-dotenv
