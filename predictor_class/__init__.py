@@ -7,7 +7,15 @@ import cv2
 import requests
 import io
 import os
+import tensorflow as tf
+import tensorflow_hub as hub
+from typing import Optional, Dict, Any
 
+# Load model with reduced optimization for better compatibility
+model = hub.load('https://tfhub.dev/google/movenet/singlepose/lightning/4', tags=['serve'])
+movenet = model.signatures['serving_default']
+
+TARGET_IMAGE_SIZE = (192, 192)
 countries_to_race = {
     "asian": [
         "China",
@@ -585,3 +593,77 @@ class PredictorService:
         return (
             (logistic_component * weighted_average_size) + adjustment
         ) * scale_factor, age
+
+    @staticmethod
+    def download_image(url: str) -> Optional[bytes]:
+        """Download image from URL."""
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                return response.content
+            print(f'Failed to download image: Status code {response.status_code}', flush=True)
+            return None
+        except Exception as e:
+            print(f'Error downloading image: {str(e)}', flush=True)
+            return None
+
+    def process_image_posenet(image_data: bytes) -> Optional[Dict[str, Any]]:
+        """Process image through MoveNet and return poses."""
+        try:
+            # Convert image bytes to numpy array
+            nparr = np.frombuffer(image_data, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if image is None:
+                print('Failed to decode image', flush=True)
+                return None
+            
+            # Get original dimensions
+            orig_height, orig_width = image.shape[:2]
+            
+            # Convert to RGB (MoveNet expects RGB)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Resize image to target size
+            input_image = cv2.resize(image, TARGET_IMAGE_SIZE)
+            
+            # Prepare image for model
+            input_image = tf.cast(input_image, dtype=tf.int32)
+            input_image = tf.expand_dims(input_image, axis=0)
+            
+            # Run inference
+            results = movenet(input_image)
+            keypoints = results['output_0'].numpy().squeeze()
+            
+            # Convert keypoints to API format
+            poses = []
+            keypoint_names = [
+                'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+                'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+                'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+                'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
+            ]
+            
+            for idx, name in enumerate(keypoint_names):
+                y, x, score = keypoints[idx]
+                if score > 0.2:  # Minimum confidence threshold
+                    x_scaled = int(x * orig_width)
+                    y_scaled = int(y * orig_height)
+                    poses.append({
+                        'score': float(score),
+                        'part': name,
+                        'position': {
+                            'x': x_scaled,
+                            'y': y_scaled
+                        }
+                    })
+            
+            return {
+                'poses': poses,
+                'camera_width': orig_width,
+                'camera_height': orig_height
+            }
+            
+        except Exception as e:
+            print(f'Error processing image through MoveNet: {str(e)}', flush=True)
+            return None
+            return None

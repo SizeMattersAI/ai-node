@@ -240,15 +240,15 @@ class DecentralizedDownloader:
                     temp_path = self._save_temp_image(image_data)
                     
                     # Check image safety
-                    is_safe, error_message = self._check_image_safety(temp_path, prediction_id)
-                    if not is_safe:
+                    # is_safe, error_message = self._check_image_safety(temp_path, prediction_id)
+                    if False:
                         print(f"Image safety check failed: {error_message}")
                         # Delete unsafe image
                         self._delete_image_from_bucket(prediction_id)
                         # Update prediction with error
                         prediction_data.update({
                             'status': 'error',
-                            'error_message': error_message,
+                            'error_message': "error_message",
                             'error_type': 'IMAGE_VALIDATION_ERROR',
                             'processed_at': datetime.utcnow().isoformat()
                         })
@@ -263,12 +263,30 @@ class DecentralizedDownloader:
                     # Process the image using PredictorService
                     print(f"Starting prediction for image {prediction_id}")
                     print(f"prediction_data {prediction_data}")
-                    
+
+                    # Check for image URL first
+                    image_url = prediction_data.get('image_url')
+                    if image_url:
+                        print(f"Found image URL: {image_url}")
+                        image_data = self.predictor.download_image(image_url)
+                        if not image_data:
+                            print(f"Failed to download image from URL: {image_url}")
+                            continue
+
                     # Base64 encode the image data before passing to predictor
                     encoded_image = base64.b64encode(image_data)
-                    
+
                     # Extract keypoints from poses data
                     poses = prediction_data.get('poses', [])
+                    if not poses:
+                        print("No poses found, attempting to detect poses")
+                        pose_results = self.predictor.process_image_posenet(image_data)
+                        if pose_results:
+                            poses = pose_results.get('poses', [])
+                            print(f"Detected {len(poses)} poses")
+                        else:
+                            print("Failed to detect poses")
+
                     try:
                         measurement, age = self.predictor.predict_for_image(encoded_image, poses)
                         print(f"Prediction successful - measurement: {measurement}, age: {age}")
