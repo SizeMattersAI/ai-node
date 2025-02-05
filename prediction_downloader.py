@@ -278,12 +278,18 @@ class DecentralizedDownloader:
 
                     # Extract keypoints from poses data
                     poses = prediction_data.get('poses', [])
+
+                    camera_width = None
+                    camera_height = None
+
                     if not poses:
                         print("No poses found, attempting to detect poses")
                         pose_results = self.predictor.process_image_posenet(image_data)
                         if pose_results:
                             poses = pose_results.get('poses', [])
                             print(f"Detected {len(poses)} poses")
+                            camera_width = pose_results.get('camera_width', None)
+                            camera_height = pose_results.get('camera_height', None)
                         else:
                             print("Failed to detect poses")
 
@@ -296,15 +302,23 @@ class DecentralizedDownloader:
                         age = 0
 
                     # Update the prediction JSON with results
+
+                    print(f"poses: {poses}", flush=True)
+
+
                     prediction_data.update({
                         'status': 'completed',
                         'measurement': round(measurement, 2),
                         'age': age,
+                        'poses': poses,
+                        'camera_width': camera_width,
+                        'camera_height': camera_height,
                         'processed_at': datetime.utcnow().isoformat()
                     })
 
                     # Save updated JSON back to private bucket
                     json_content = json.dumps(prediction_data, indent=2)
+                    print(f"json_content: {json_content}", flush=True)
                     self.s3.put_object(
                         Bucket=self.private_bucket_name,  # Use private bucket for JSONs
                         Key=f"predictions/{prediction_id}.json",
@@ -326,9 +340,10 @@ class DecentralizedDownloader:
 
         # Update the last processed ID
         if highest_id > self.last_processed_id:
+            print(f"Updating last processed ID to: {highest_id}", flush=True)
             self._save_state(highest_id)
             self.last_processed_id = highest_id
-            print(f"Updated last processed ID to: {highest_id}")
+            print(f"Updated last processed ID to: {highest_id}", flush=True)
 
     def run_forever(self):
         """Run the processor in an infinite loop"""
